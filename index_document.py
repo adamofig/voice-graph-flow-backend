@@ -90,5 +90,12 @@ def index_pdf(file_path: str):
         mongo.close()
 
 if __name__ == "__main__":
-    pdf_file = "Adamo Resume Jan-2026.pdf"
+    import sys
+    
+    # Default file path
+    default_pdf = "walmart relocation.pdf"
+    
+    # Use command line argument if provided, otherwise use default
+    pdf_file = sys.argv[1] if len(sys.argv) > 1 else default_pdf
+    
     index_pdf(pdf_file)
