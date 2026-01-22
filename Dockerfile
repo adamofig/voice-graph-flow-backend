@@ -9,13 +9,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY pyproject.toml uv.lock ./
+# Copy dependency files and README first for better caching and validation
+COPY pyproject.toml uv.lock README.md ./
 
 # Install dependencies into a virtual environment
 # We use --extra-index-url to prefer CPU-only torch wheels and reduce image size
+# We use --no-install-project to skip installing the project itself (better caching)
 RUN uv venv --python 3.12.7 && \
-    uv sync --no-dev --extra-index-url https://download.pytorch.org/whl/cpu
+    uv sync --no-dev --no-install-project --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Runtime stage
 FROM python:3.12.7-slim-bookworm AS runtime
