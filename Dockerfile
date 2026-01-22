@@ -1,34 +1,42 @@
 FROM python:3.12.7-slim-bookworm AS builder
 
-# Install uv
-RUN pip install uv
+# Install uv and system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install uv
 
 WORKDIR /app
 
-# Copy the entire project
-COPY . .
+# Copy dependency files first for better caching
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies into a virtual environment
+# We use --extra-index-url to prefer CPU-only torch wheels and reduce image size
 RUN uv venv --python 3.12.7 && \
-    uv sync --no-dev
+    uv sync --no-dev --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Runtime stage
 FROM python:3.12.7-slim-bookworm AS runtime
 
+# Install runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
 
 # Copy the virtual environment from the builder
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy the application code
 COPY . /app
-
-# Copy .env files if they exist
-COPY .env* /app/
-
-WORKDIR /app
 
 # Expose the application port
 EXPOSE 8080
