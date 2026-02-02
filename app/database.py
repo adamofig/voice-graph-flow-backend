@@ -47,7 +47,7 @@ class MongoManager:
         """Converts a list of floats to BSON Binary vector format."""
         return Binary.from_vector(vector, dtype)
 
-    def create_vector_index(self, collection_name="vectorData", field_name="vector", dimensions=768):
+    def create_vector_index(self, collection_name="vectorData", field_name="vector", dimensions=1536):
         """Creates a native MongoDB 8.0 vector index using HNSW."""
         if self.db is None:
             print("Error: Not connected to a database.")
@@ -131,8 +131,10 @@ class MongoManager:
         ]
         return list(self.collection.aggregate(pipeline))
 
-    def vector_search(self, query_vector, limit=5, num_candidates=100):
+    def vector_search(self, query_vector, limit=5, num_candidates=100, include_explain=False):
         """Performs a native MongoDB 8.0 vector search."""
+
+        print(f"Starting vector search (explain={include_explain})")
         if self.collection is None:
             print("Error: Not connected to a collection.")
             return []
@@ -140,7 +142,7 @@ class MongoManager:
         pipeline = [
             {
                 "$vectorSearch": {
-                    "index": "vector_index",
+                    "index": "default",
                     "path": "vector",
                     "queryVector": query_vector,
                     "numCandidates": num_candidates,
@@ -151,13 +153,84 @@ class MongoManager:
                 "$project": {
                     "_id": 0,
                     "text": 1,
-                    "score": {"$meta": "searchScore"},
+                    "score": {"$meta": "vectorSearchScore"},
                     "source": 1,
                     "chunk_index": 1,
                     "metadata": 1
                 }
             }
         ]
+        
+        results = list(self.collection.aggregate(pipeline))
+        
+        if include_explain:
+            print("Fetching explain details...")
+            try:
+                explain_data = self.db.command(
+                    "aggregate", self.collection.name,
+                    pipeline=[pipeline[0]], # Only the $vectorSearch stage
+                    cursor={},
+                    explain=True
+                )
+                
+                # Extract relevant explain info for the user
+                # Based on MongoDB Vector Search explain output
+                if "stages" in explain_data:
+                    vs_stage = explain_data["stages"][0].get("$vectorSearch", {})
+                    explain_info = vs_stage.get("explain", {})
+                    
+                    # Return list with explain metadata attached
+                    return {
+                        "results": results,
+                        "explain": explain_info
+                    }
+            except Exception as e:
+                print(f"Failed to get explain data: {e}")
+                return {
+                    "results": results,
+                    "explain_error": str(e)
+                }
+
+        return results
+
+    def atlas_search(self, query_text, limit=5):
+        """Performs an Atlas Search using the $search operator."""
+        if self.collection is None:
+            print("Error: Not connected to a collection.")
+            return []
+
+        pipeline = [
+            {
+                "$search": {
+                    "index": "text_index", # As per user request example
+                    "text": {
+                        "query": query_text,
+                        "path": "text", # Assuming 'text' is the field for content
+                        "fuzzy": {"maxEdits": 1}
+                    },
+                    "scoreDetails": True,
+                    "highlight": {
+                        "path": "text"
+                    }
+                }
+            },
+            {
+                "$limit": limit
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "text": 1,
+                    "score": {"$meta": "searchScore"},
+                    "scoreDetails": {"$meta": "searchScoreDetails"},
+                    "highlights": {"$meta": "searchHighlights"},
+                    "source": 1,
+                    "chunk_index": 1,
+                    "metadata": 1
+                }
+            }
+        ]
+        print('about to start agregation')
         return list(self.collection.aggregate(pipeline))
 
     def insert_chunk(self, data):

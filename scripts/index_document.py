@@ -1,9 +1,16 @@
 import os
 import sys
+from pathlib import Path
+
+# Add project root to sys.path to allow imports from app/ and scripts/
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
+
 from docling.document_converter import DocumentConverter
-from chunking import get_docling_chunker, chunk_document, get_contextualized_text
-from embedding import get_embedding
-from database import MongoManager
+from scripts.chunking import get_docling_chunker, chunk_document, get_contextualized_text
+from app.embedding import get_embedding
+from app.database import MongoManager
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,9 +41,9 @@ def index_pdf(file_path: str):
 
         # 4. Ensure Vector Index exists
         print("Ensuring vector index exists...")
-        # Gemini embeddings are 768 dimensions (if using text-embedding-004)
+        # Gemini embeddings are 1536 dimensions
         # Check if we need to adjust dimensions based on the actual vector length
-        mongo.create_vector_index(dimensions=768)
+        mongo.create_vector_index(dimensions=1536)
 
         # 5. Process each chunk
         for i, chunk in enumerate(chunks):

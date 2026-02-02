@@ -2,10 +2,11 @@ import os
 import shutil
 import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
-from docling.document_converter import DocumentConverter
+from app.api.uploader import router as uploader_router
+from app.api.search_api import router as search_router
 from typing import Dict, List, Optional
-from database import MongoManager
-from embedding import get_embedding
+from app.database import MongoManager
+from app.embedding import get_embedding
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -25,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-converter = DocumentConverter()
+# converter = DocumentConverter()  # Moved to api/uploader.py
 mongo = MongoManager()
 client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
@@ -33,7 +34,7 @@ client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 async def startup_db_client():
     if mongo.connect():
         # Ensure indices exist
-        mongo.create_vector_index(dimensions=768)
+        mongo.create_vector_index(dimensions=1536)
         mongo.create_text_index()
     else:
         print("Warning: Could not connect to MongoDB on startup.")
@@ -46,55 +47,11 @@ async def shutdown_db_client():
     except:
         pass
 
-@app.post("/convert")
-async def convert_document(file: UploadFile = File(...)):
-    """
-    Receives a file, converts it to markdown using Docling, and returns the markdown content.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_file_path = os.path.join(temp_dir, file.filename)
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        try:
-            result = converter.convert(temp_file_path)
-            markdown_content = result.document.export_to_markdown()
-            return {
-                "filename": file.filename,
-                "markdown": markdown_content
-            }
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
+# Include routers
+app.include_router(uploader_router)
+app.include_router(search_router)
 
-@app.get("/search")
-async def search(
-    query: str = Query(..., description="The search query"),
-    type: str = Query("keyword", enum=["keyword", "semantic"], description="Type of search to perform"),
-    limit: int = Query(5, ge=1, le=20)
-):
-    """
-    Search for documents using either keyword ($text index) or semantic (vector) search.
-    """
-    if mongo.db is None:
-        if not mongo.connect():
-            raise HTTPException(status_code=500, detail="Database connection failed")
 
-    try:
-        if type == "keyword":
-            results = mongo.keyword_search(query, limit=limit)
-        else:
-            # Semantic search
-            raw_vector = get_embedding(query)
-            bson_vector = mongo.to_bson_vector(raw_vector)
-            results = mongo.vector_search(bson_vector, limit=limit)
-        
-        return {
-            "query": query,
-            "type": type,
-            "results": results
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.get("/llm")
 async def ask_llm(

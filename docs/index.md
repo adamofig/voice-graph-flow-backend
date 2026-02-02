@@ -11,13 +11,17 @@ The final system will be a full-scale RAG implementation using state-of-the-art 
 ## Current Status
 - PDF-to-Markdown conversion service (FastAPI + Docling).
 - Gemini Embedding integration (`embedding.py` using `google-genai`).
-- **Search Service**: Native keyword search ($text) and semantic vector search via the `/search` endpoint.
+- **Search Service**: Three types of specialized search:
+    - **Traditional Search ($text)**: Fast keyword matching.
+    - **Atlas Search ($search)**: Advanced full-text search with fuzzy matching, scoring, and highlighting.
+    - **Vector Search ($vectorSearch)**: Semantic similarity search using high-dimensional embeddings.
 - **MongoDB Atlas & 8.0 Integration**: Flexible connection support and BSON-optimized vector storage (`database.py` and `index_document.py`).
 
 ## Documentation Index
 
 - [Technical Reference: Docling Usage](file:///Users/adamo/Documents/Rag_system/docs/techinical-reference/docling.md) - Details on how we use Docling for document parsing.
 - [Technical Reference: MongoDB Integration](file:///Users/adamo/Documents/Rag_system/docs/techinical-reference/mongodb.md) - Explains local vector search and BSON compression.
+- [Technical Reference: MongoDB Search](file:///Users/adamo/Documents/Rag_system/docs/techinical-reference/search.md) - Deep dive into Text, Atlas, and Vector search strategies.
 - [System Architecture](file:///Users/adamo/Documents/Rag_system/docs/techinical-reference/architecture.md) - Overview of the full RAG pipeline.
 - [Project Roadmap](file:///Users/adamo/Documents/Rag_system/docs/roadmap.md) - Our path from conversion service to full RAG.
 
@@ -64,15 +68,30 @@ Then send a POST request to `/convert` with a PDF file.
 
 ### Querying the System
 
-To perform a search across your indexed documents:
+To perform a search, use one of the specialized endpoints under `/search`:
 
+#### 1. Traditional Text Search (`/search/text`)
+Uses MongoDB `$text` indices. Best for exact token matching.
 ```bash
-# Keyword Search (Default)
-curl "http://localhost:8000/search?query=full+stack&type=keyword"
-
-# Semantic Search
-curl "http://localhost:8000/search?query=AI+Engineer&type=semantic"
+curl "http://localhost:8000/search/text?query=walmart&limit=5"
 ```
 
-The system will return the most relevant chunks along with their source and metadata.
+#### 2. Atlas Search (`/search/atlas`)
+Uses the `$search` operator. Supports **fuzzy matching**, **score details**, and **text highlighting**.
+```bash
+curl "http://localhost:8000/search/atlas?query=walmart&limit=5"
+```
+
+#### 3. Semantic Vector Search (`/search/vector`)
+Uses `$vectorSearch` with Gemini-generated embeddings (1536 dimensions). Finds content by meaning.
+```bash
+curl "http://localhost:8000/search/vector?query=how+is+walmart+growing&limit=5"
+```
+
+Each search returns relevant document chunks along with:
+- `text`: The original content chunk.
+- `score`: Relevance score (or similarity score for vectors).
+- `metadata`: Original file metadata, page numbers, etc.
+- `source`: The originating filename.
+- `scoreDetails` & `highlights`: (Atlas Search only) Breakdown of why a result matched.
 

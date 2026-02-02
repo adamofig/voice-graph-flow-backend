@@ -5,6 +5,17 @@
 
 This project provides a robust RAG backend featuring document conversion via [Docling](https://github.com/DS4SD/docling) and a searchable vector database powered by **MongoDB 8.0**.
 
+
+## Project structure. 
+
+all code lives inside app folder. where you can find the main.py file.
+
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+or 
+
+uv run python -m app.main
+
 ## Quick Start & Environment Setup
 
 This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable Python package and environment management.

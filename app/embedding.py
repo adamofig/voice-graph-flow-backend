@@ -6,18 +6,22 @@ from dotenv import load_dotenv
 # Load environment variables (for GOOGLE_API_KEY)
 load_dotenv()
 
+from google.genai import types
+
 def get_embedding(
     contents: Union[str, List[str]], 
-    model: str = "text-embedding-004",
-    api_key: Optional[str] = None
+    model: str = "gemini-embedding-001",
+    api_key: Optional[str] = None,
+    output_dimensionality: int = 1536
 ) -> Union[List[float], List[List[float]]]:
     """
     Generates embeddings for the given content using the Google GenAI SDK.
     
     Args:
         contents: A single string or a list of strings to embed.
-        model: The Google embedding model to use. Defaults to "text-embedding-004".
+        model: The Google embedding model to use. Defaults to "gemini-embedding-001".
         api_key: Optional API key. If not provided, it will look for GOOGLE_API_KEY env var.
+        output_dimensionality: The size of the output embedding vector. Defaults to 1536.
         
     Returns:
         A list of floats (if single string) or a list of lists of floats (if multiple strings).
@@ -26,12 +30,11 @@ def get_embedding(
     
     result = client.models.embed_content(
         model=model,
-        contents=contents
+        contents=contents,
+        config=types.EmbedContentConfig(output_dimensionality=output_dimensionality)
     )
     
     # The SDK returns a list of embeddings
-    # If a single content was passed, we might want to return just that one vector
-    # But for consistency with the SDK's batch-first approach:
     embeddings = [item.values for item in result.embeddings]
     
     if isinstance(contents, str):
